@@ -10,8 +10,8 @@ start_link() ->
 init([]) ->
     Procs = case application:get_env(cortex_remote_write, url) of
       undefined -> [];
-      _URL -> [#{id    => prometheus_remote_writer,
-                 start => {prometheus_remote_writer, start_link, []}}]
+      _URL -> [#{id    => cortex_remote_write_server,
+                 start => {cortex_remote_write_server, start_link, []}}]
     end,
 
     {ok, {{one_for_one, 1, 5}, Procs}}.
