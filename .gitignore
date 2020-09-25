@@ -1,0 +1,40 @@
+.eunit
+*.o
+*.beam
+*.plt
+erl_crash.dump
+.concrete/DEV_MODE
+
+# Project
+hellerl_world.d
+
+# Erlang
+/ebin
+/elvis
+/_rel
+/logs
+/cover
+/tests/*.spec
+*.coverdata
+
+# Web/Svelte/JS
+/priv/public
+/priv/public
+/node_modules
+
+# Erlang.mk
+/.erlang.mk
+
+# rebar 2.x
+.rebar
+rel/example_project
+ebin/*.beam
+deps
+
+# rebar 3
+.rebar3
+_build/
+_checkouts/
+
+# MacOS
+.DS_Store
