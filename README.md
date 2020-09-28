@@ -3,6 +3,8 @@ Erlang library to forward Prometheus metrics to a Cortex/Prometheus instance
 
 Tested writing to cortex, might also work with Prometheus directly.
 
+Collects metrics from the `default` registry of [Prometheus lib](https://github.com/deadtrickster/prometheus.erl).
+
 ## Config
 
 Example:
