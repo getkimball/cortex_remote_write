@@ -60,13 +60,14 @@ start_link() ->
 %% @end
 %%--------------------------------------------------------------------
 init([]) ->
-    {ok, _TRef} = timer:apply_interval(15000, ?MODULE, tick, []),
     {ok, URL} = application:get_env(cortex_remote_write, url),
     {ok, Username} = application:get_env(cortex_remote_write, username),
     {ok, Password} = application:get_env(cortex_remote_write, password),
+    Interval = application:get_env(cortex_remote_write, interval, 15000),
     DefaultLabelsPL = application:get_env(cortex_remote_write,
                                           default_labels,
                                           []),
+    {ok, _TRef} = timer:apply_interval(Interval, ?MODULE, tick, []),
 
     DefaultLabels = [#'LabelPair'{name=N, value=V} || {N, V} <-DefaultLabelsPL],
 

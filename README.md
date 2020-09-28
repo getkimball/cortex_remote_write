@@ -3,12 +3,15 @@ Erlang library to forward Prometheus metrics to a Cortex/Prometheus instance
 
 Tested writing to cortex, might also work with Prometheus directly.
 
+Collects metrics from the `default` registry of [Prometheus lib](https://github.com/deadtrickster/prometheus.erl).
+
 ## Config
 
 Example:
 
 ```
 [{cortex_remote_write, [
+    {interval, 15000},
     {url, "URL"},
     {username, "USERNAME"},
     {password, "PASSWORD"},
@@ -17,6 +20,8 @@ Example:
     ]}
 ]}].
 ```
+
+`interval` - in Milliseconds to trigger metric collection/sending.
 
 If `url` is not specified, the supervisor will not start the writer process.
 
