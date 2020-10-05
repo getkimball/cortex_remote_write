@@ -170,22 +170,27 @@ send_write_request(WriteRequest,
     ReqOpts = [
       {basic_auth, {Username, Password}}],
 
-    {ok, Code, RespHeaders, ClientRef} = hackney:request(
+    Response = hackney:request(
       post,
       URL,
       ReqHeaders,
       ReqBody,
       ReqOpts),
 
+    handle_response(Response).
+
+
+handle_response({ok, Code, RespHeaders, ClientRef}) ->
     {ok, Body} = hackney:body(ClientRef),
 
     ?LOG_DEBUG(#{what=>"Prometheus remote write",
                  resp_body=>Body,
                  resp_body_l=>binary:bin_to_list(Body),
                  resp_headers=>RespHeaders,
-                 req_headers=>ReqHeaders,
-                 resp_code=>Code,
-                 url=>URL}).
+                 resp_code=>Code});
+handle_response({error, Reason}) ->
+    ?LOG_INFO(#{what=>"Prometheus remote write error",
+                 reason=>Reason}).
 
 
 iterate_metrics(Callback, State) ->
