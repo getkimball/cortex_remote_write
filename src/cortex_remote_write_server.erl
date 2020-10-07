@@ -15,7 +15,8 @@
 
 %% API functions
 -export([start_link/0,
-         tick/0]).
+         tick/0,
+         stop/0]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -44,6 +45,9 @@
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
+stop() ->
+    gen_server:stop(?MODULE, normal, 1000).
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -69,9 +73,9 @@ init([]) ->
                                           []),
     {ok, _TRef} = timer:apply_interval(Interval, ?MODULE, tick, []),
 
-    DefaultLabels = [#'LabelPair'{name=N, value=V} || {N, V} <-DefaultLabelsPL],
+    DefaultLabels = lists:map(fun config_label_to_label_pair/1,
+                              DefaultLabelsPL),
 
-    tick(),
     {ok, #state{default_labels=DefaultLabels,
                 url=URL,
                 username=Username,
@@ -156,41 +160,13 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 %%%
-
-send_write_request(WriteRequest,
-                   #state{url=URL,
-                          username=Username,
-                          password=Password}) ->
-    Msg = cortex_pb:encode_msg(WriteRequest),
-    {ok, ReqBody} = snappy:compress(Msg),
-
-    ReqHeaders = [
-      {<<"X-Prometheus-Remote-Write-Version">>, <<"0.1.0">>}
-    ],
-    ReqOpts = [
-      {basic_auth, {Username, Password}}],
-
-    Response = hackney:request(
-      post,
-      URL,
-      ReqHeaders,
-      ReqBody,
-      ReqOpts),
-
-    handle_response(Response).
-
-
-handle_response({ok, Code, RespHeaders, ClientRef}) ->
-    {ok, Body} = hackney:body(ClientRef),
-
-    ?LOG_DEBUG(#{what=>"Prometheus remote write",
-                 resp_body=>Body,
-                 resp_body_l=>binary:bin_to_list(Body),
-                 resp_headers=>RespHeaders,
-                 resp_code=>Code});
-handle_response({error, Reason}) ->
-    ?LOG_INFO(#{what=>"Prometheus remote write error",
-                 reason=>Reason}).
+config_label_to_label_pair({K, {env, V}}) ->
+    OSEnvVal = cortex_remote_write_os:getenv(V),
+    #'LabelPair'{name=K, value=OSEnvVal};
+config_label_to_label_pair({K, V}) when is_list(V) ->
+    #'LabelPair'{name=K, value=V};
+config_label_to_label_pair({K, V}) when is_binary(V) ->
+    #'LabelPair'{name=K, value=V}.
 
 
 iterate_metrics(Callback, State) ->
@@ -214,21 +190,23 @@ handle_metric_family(_Registry,
                                      help=Help,
                                      type=Type,
                                      metric=Metrics},
-                     State) ->
+                     State=#state{url=URL,
+                                  username=Username,
+                                  password=Password}) ->
     Metadata = [
       #'MetricMetadata'{type=prom_type_atom_to_cortex_atom(Type),
                         metric_name=Name,
                         help=Help}],
-    Timestamp = os:system_time(millisecond),
     MapFun = fun(Metric) ->
-        metric_to_timeseries_list(Name, Timestamp, Metric, State)
+        metric_to_timeseries_list(Name, Metric, State)
     end,
     TimeSeriesLists = lists:map(MapFun, Metrics),
     TimeSeries = lists:flatten(TimeSeriesLists),
     WriteRequest = #'WriteRequest'{
         timeseries=TimeSeries,
         metadata=Metadata},
-    send_write_request(WriteRequest, State).
+    ReqOpts = [{basic_auth, {Username, Password}}],
+    cortex_remote_write_http:send_write_request(URL, ReqOpts, WriteRequest).
 
 prom_type_atom_to_cortex_atom('UNTYPED') -> undefined;
 prom_type_atom_to_cortex_atom(Type) -> Type.
@@ -239,29 +217,31 @@ prom_labels_to_cortex_labels(Name, Labels) ->
       | Labels].
 
 % TODO: pull timestamp from metric
-metric_to_timeseries_list(Name, Timestamp, #'Metric'{label=Labels,
-                                                gauge=#'Gauge'{value=Value}},
+metric_to_timeseries_list(Name, #'Metric'{label=Labels,
+                                          timestamp_ms=Timestamp,
+                                          gauge=#'Gauge'{value=Value}},
                           #state{default_labels=DefaultLabels}) ->
     CLabels = prom_labels_to_cortex_labels(
         Name, Labels ++ DefaultLabels),
     [build_timeseries(Timestamp, CLabels, Value)];
 metric_to_timeseries_list(Name,
-                          Timestamp,
                           #'Metric'{label=Labels,
+                                    timestamp_ms=Timestamp,
                                     untyped=#'Untyped'{value=Value}},
                           #state{default_labels=DefaultLabels}) ->
     CLabels = prom_labels_to_cortex_labels(Name, Labels ++ DefaultLabels),
     [build_timeseries(Timestamp, CLabels, Value)];
 metric_to_timeseries_list(Name,
-                          Timestamp, #'Metric'{
+                          #'Metric'{
                                 label=Labels,
+                                timestamp_ms=Timestamp,
                                 counter=#'Counter'{value=Value}},
                           #state{default_labels=DefaultLabels}) ->
     CLabels = prom_labels_to_cortex_labels(Name, Labels ++ DefaultLabels),
     [build_timeseries(Timestamp, CLabels, Value)];
 metric_to_timeseries_list(Name,
-                          Timestamp,
                           #'Metric'{label=Labels,
+                                    timestamp_ms=Timestamp,
                                     histogram=#'Histogram'{sample_count=Count,
                                                            sample_sum=Sum,
                                                            bucket=Buckets}},
@@ -277,8 +257,9 @@ metric_to_timeseries_list(Name,
     TS2 = build_timeseries(Timestamp, Sum_CLabels, Sum),
     [TS1| [TS2|BucketTS]];
 metric_to_timeseries_list(Name,
-                          Timestamp, #'Metric'{
+                          #'Metric'{
                             label=Labels,
+                            timestamp_ms=Timestamp,
                             summary=#'Summary'{sample_count=Count,
                                                sample_sum=Sum}},
                           #state{default_labels=DefaultLabels}) ->

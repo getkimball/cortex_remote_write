@@ -13,7 +13,7 @@ dep_version.mk = git https://github.com/manifest/version.mk.git
 BUILD_DEPS = elvis_mk version.mk gpb
 TEST_DEPS = meck
 TEST_DIR = tests
-DIALYZER_DIRS = --src src
+DIALYZER_DIRS = --src src tests
 
 DEP_PLUGINS = elvis_mk version.mk
 
