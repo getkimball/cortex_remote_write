@@ -14,6 +14,8 @@
                  cortex_remote_write_http,
                  cortex_remote_write_os]).
 
+-define(TIME, 1234).
+
 all() -> [{group, test_server}].
 
 groups() -> [{test_server, [
@@ -27,6 +29,8 @@ init_per_testcase(_, Config) ->
     application:set_env(cortex_remote_write, url, "URL"),
     application:set_env(cortex_remote_write, username, "USERNAME"),
     application:set_env(cortex_remote_write, password, "PASSWORD"),
+
+    meck:expect(cortex_remote_write_os, system_time, [millisecond], ?TIME),
 
     meck:expect(cortex_remote_write_http, send_write_request, ['_', '_', '_'], ok),
     Config.
@@ -46,8 +50,7 @@ aa_test_single_gauge(Config) ->
     Help = <<"help">>,
     Type = 'GAUGE',
     Labels = [#'LabelPair'{name= <<"__name__">>, value=Name}],
-    Metric = #'Metric'{gauge=#'Gauge'{value=Value},
-                       timestamp_ms=TimeStampMS},
+    Metric = #'Metric'{gauge=#'Gauge'{value=Value}},
     Metrics = #'MetricFamily'{name=Name,
                               help=Help,
                               type=Type,
@@ -58,7 +61,7 @@ aa_test_single_gauge(Config) ->
     ok = start(),
     run(),
 
-    Sample = #'Sample'{value=Value, timestamp_ms=TimeStampMS},
+    Sample = #'Sample'{value=Value, timestamp_ms=?TIME},
     TimeSeries = #'TimeSeries'{labels=Labels, samples=[Sample]},
     Metadata = #'MetricMetadata'{type='GAUGE', metric_name=Name, help=Help},
     Write = #'WriteRequest'{timeseries=[TimeSeries], metadata=[Metadata]},
@@ -83,8 +86,7 @@ ba_test_os_env_default_label(Config) ->
     Type = 'GAUGE',
     Labels = [#'LabelPair'{name= <<"__name__">>, value=Name},
               #'LabelPair'{name=DLKey, value=OSEnvVarValue}],
-    Metric = #'Metric'{gauge=#'Gauge'{value=Value},
-                       timestamp_ms=TimeStampMS},
+    Metric = #'Metric'{gauge=#'Gauge'{value=Value}},
     Metrics = #'MetricFamily'{name=Name,
                               help=Help,
                               type=Type,
@@ -95,7 +97,7 @@ ba_test_os_env_default_label(Config) ->
     ok = start(),
     run(),
 
-    Sample = #'Sample'{value=Value, timestamp_ms=TimeStampMS},
+    Sample = #'Sample'{value=Value, timestamp_ms=?TIME},
     TimeSeries = #'TimeSeries'{labels=Labels, samples=[Sample]},
     Metadata = #'MetricMetadata'{type='GAUGE', metric_name=Name, help=Help},
     Write = #'WriteRequest'{timeseries=[TimeSeries], metadata=[Metadata]},
