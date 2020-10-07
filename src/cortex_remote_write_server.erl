@@ -197,8 +197,10 @@ handle_metric_family(_Registry,
       #'MetricMetadata'{type=prom_type_atom_to_cortex_atom(Type),
                         metric_name=Name,
                         help=Help}],
+
+    Timestamp = cortex_remote_write_os:system_time(millisecond),
     MapFun = fun(Metric) ->
-        metric_to_timeseries_list(Name, Metric, State)
+        metric_to_timeseries_list(Name, Timestamp, Metric, State)
     end,
     TimeSeriesLists = lists:map(MapFun, Metrics),
     TimeSeries = lists:flatten(TimeSeriesLists),
@@ -217,31 +219,32 @@ prom_labels_to_cortex_labels(Name, Labels) ->
       | Labels].
 
 % TODO: pull timestamp from metric
-metric_to_timeseries_list(Name, #'Metric'{label=Labels,
-                                          timestamp_ms=Timestamp,
-                                          gauge=#'Gauge'{value=Value}},
+metric_to_timeseries_list(Name,
+                          Timestamp,
+                          #'Metric'{label=Labels,
+                                    gauge=#'Gauge'{value=Value}},
                           #state{default_labels=DefaultLabels}) ->
     CLabels = prom_labels_to_cortex_labels(
         Name, Labels ++ DefaultLabels),
     [build_timeseries(Timestamp, CLabels, Value)];
 metric_to_timeseries_list(Name,
+                          Timestamp,
                           #'Metric'{label=Labels,
-                                    timestamp_ms=Timestamp,
                                     untyped=#'Untyped'{value=Value}},
                           #state{default_labels=DefaultLabels}) ->
     CLabels = prom_labels_to_cortex_labels(Name, Labels ++ DefaultLabels),
     [build_timeseries(Timestamp, CLabels, Value)];
 metric_to_timeseries_list(Name,
+                          Timestamp,
                           #'Metric'{
                                 label=Labels,
-                                timestamp_ms=Timestamp,
                                 counter=#'Counter'{value=Value}},
                           #state{default_labels=DefaultLabels}) ->
     CLabels = prom_labels_to_cortex_labels(Name, Labels ++ DefaultLabels),
     [build_timeseries(Timestamp, CLabels, Value)];
 metric_to_timeseries_list(Name,
+                          Timestamp,
                           #'Metric'{label=Labels,
-                                    timestamp_ms=Timestamp,
                                     histogram=#'Histogram'{sample_count=Count,
                                                            sample_sum=Sum,
                                                            bucket=Buckets}},
@@ -257,9 +260,9 @@ metric_to_timeseries_list(Name,
     TS2 = build_timeseries(Timestamp, Sum_CLabels, Sum),
     [TS1| [TS2|BucketTS]];
 metric_to_timeseries_list(Name,
+                          Timestamp,
                           #'Metric'{
                             label=Labels,
-                            timestamp_ms=Timestamp,
                             summary=#'Summary'{sample_count=Count,
                                                sample_sum=Sum}},
                           #state{default_labels=DefaultLabels}) ->
