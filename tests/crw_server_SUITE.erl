@@ -11,12 +11,14 @@
 -define(MUT, cortex_remote_write_server).
 -define(MECKED, [prometheus_registry,
                  prometheus_collector,
-                 cortex_remote_write_http]).
+                 cortex_remote_write_http,
+                 cortex_remote_write_os]).
 
 all() -> [{group, test_server}].
 
 groups() -> [{test_server, [
-                aa_test_single_gauge
+                aa_test_single_gauge,
+                ba_test_os_env_default_label
               ]}
             ].
 
@@ -65,6 +67,42 @@ aa_test_single_gauge(Config) ->
 
     Config.
 
+ba_test_os_env_default_label(Config) ->
+
+    DLKey = <<"default_label_key">>,
+    OSEnvVar = <<"OS Env var">>,
+    OSEnvVarValue = <<" OS Env var Value">>,
+    DefaultLabels = [{DLKey, {env, OSEnvVar}}],
+    meck:expect(cortex_remote_write_os, getenv, ['_'], OSEnvVarValue),
+    application:set_env(cortex_remote_write, default_labels, DefaultLabels),
+
+    Value = 1,
+    TimeStampMS = 100,
+    Name = <<"foo">>,
+    Help = <<"help">>,
+    Type = 'GAUGE',
+    Labels = [#'LabelPair'{name= <<"__name__">>, value=Name},
+              #'LabelPair'{name=DLKey, value=OSEnvVarValue}],
+    Metric = #'Metric'{gauge=#'Gauge'{value=Value},
+                       timestamp_ms=TimeStampMS},
+    Metrics = #'MetricFamily'{name=Name,
+                              help=Help,
+                              type=Type,
+                              metric=[Metric]},
+
+    set_metrics([Metrics]),
+
+    ok = start(),
+    run(),
+
+    Sample = #'Sample'{value=Value, timestamp_ms=TimeStampMS},
+    TimeSeries = #'TimeSeries'{labels=Labels, samples=[Sample]},
+    Metadata = #'MetricMetadata'{type='GAUGE', metric_name=Name, help=Help},
+    Write = #'WriteRequest'{timeseries=[TimeSeries], metadata=[Metadata]},
+
+    assert_write_calls(1, '_', '_', Write),
+
+    Config.
 
 run() ->
     ?MUT:tick(),

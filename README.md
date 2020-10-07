@@ -27,4 +27,13 @@ If `url` is not specified, the supervisor will not start the writer process.
 
 `username` and `password` are required if `url` is present.
 
+### Default Labels
+
+A proplist/ list of key-value pairs.
+
+Value can be:
+    * A string
+    * A binary
+    * {env, Name} - `Name` being the name of an environment variable to lookup
+
 `default_labels` defaults to `[]`.

@@ -73,7 +73,8 @@ init([]) ->
                                           []),
     {ok, _TRef} = timer:apply_interval(Interval, ?MODULE, tick, []),
 
-    DefaultLabels = [#'LabelPair'{name=N, value=V} || {N, V} <-DefaultLabelsPL],
+    DefaultLabels = lists:map(fun config_label_to_label_pair/1,
+                              DefaultLabelsPL),
 
     {ok, #state{default_labels=DefaultLabels,
                 url=URL,
@@ -159,6 +160,13 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 %%%
+config_label_to_label_pair({K, {env, V}}) ->
+    OSEnvVal = cortex_remote_write_os:getenv(V),
+    #'LabelPair'{name=K, value=OSEnvVal};
+config_label_to_label_pair({K, V}) when is_list(V) ->
+    #'LabelPair'{name=K, value=V};
+config_label_to_label_pair({K, V}) when is_binary(V) ->
+    #'LabelPair'{name=K, value=V}.
 
 
 iterate_metrics(Callback, State) ->
