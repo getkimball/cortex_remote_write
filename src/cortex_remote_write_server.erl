@@ -7,7 +7,6 @@
 %%%-------------------------------------------------------------------
 
 -module(cortex_remote_write_server).
--include_lib("cortex_pb.hrl").
 -include_lib("kernel/include/logger.hrl").
 -include_lib("prometheus/include/prometheus_model.hrl").
 
@@ -162,11 +161,11 @@ code_change(_OldVsn, State, _Extra) ->
 %%%
 config_label_to_label_pair({K, {env, V}}) ->
     OSEnvVal = cortex_remote_write_os:getenv(V),
-    #'LabelPair'{name=K, value=OSEnvVal};
+    #{name=>K, value=>OSEnvVal};
 config_label_to_label_pair({K, V}) when is_list(V) ->
-    #'LabelPair'{name=K, value=V};
+    #{name=>K, value=>V};
 config_label_to_label_pair({K, V}) when is_binary(V) ->
-    #'LabelPair'{name=K, value=V}.
+    #{name=>K, value=>V}.
 
 
 iterate_metrics(Callback, State) ->
@@ -186,17 +185,17 @@ iterate_metrics(Callback, Registry, State) ->
 
 handle_metric_family(_Registry,
                      _Collector,
-                     #'MetricFamily'{name=Name,
-                                     help=Help,
-                                     type=Type,
-                                     metric=Metrics},
+                     #{name:=Name,
+                       help:=Help,
+                       type:=Type,
+                       metric:=Metrics},
                      State=#state{url=URL,
                                   username=Username,
                                   password=Password}) ->
     Metadata = [
-      #'MetricMetadata'{type=prom_type_atom_to_cortex_atom(Type),
-                        metric_name=Name,
-                        help=Help}],
+      #{type=>prom_type_atom_to_cortex_atom(Type),
+        metric_name=>Name,
+        help=>Help}],
 
     Timestamp = cortex_remote_write_os:system_time(millisecond),
     MapFun = fun(Metric) ->
@@ -204,9 +203,9 @@ handle_metric_family(_Registry,
     end,
     TimeSeriesLists = lists:map(MapFun, Metrics),
     TimeSeries = lists:flatten(TimeSeriesLists),
-    WriteRequest = #'WriteRequest'{
-        timeseries=TimeSeries,
-        metadata=Metadata},
+    WriteRequest = #{
+        timeseries=>TimeSeries,
+        metadata=>Metadata},
     ReqOpts = [{basic_auth, {Username, Password}}],
     cortex_remote_write_http:send_write_request(URL, ReqOpts, WriteRequest).
 
@@ -214,42 +213,43 @@ prom_type_atom_to_cortex_atom('UNTYPED') -> undefined;
 prom_type_atom_to_cortex_atom(Type) -> Type.
 
 prom_labels_to_cortex_labels(Name, Labels) ->
-    [#'LabelPair'{name= <<"__name__">>,
-                  value= Name}
+    [#{name=> <<"__name__">>,
+                  value=> Name}
       | Labels].
 
 % TODO: pull timestamp from metric
 metric_to_timeseries_list(Name,
                           Timestamp,
-                          #'Metric'{label=Labels,
-                                    gauge=#'Gauge'{value=Value}},
+                          Obj=#{gauge:=#{value:=Value}},
                           #state{default_labels=DefaultLabels}) ->
+    Labels = maps:get(label, Obj, []),
     CLabels = prom_labels_to_cortex_labels(
         Name, Labels ++ DefaultLabels),
     [build_timeseries(Timestamp, CLabels, Value)];
 metric_to_timeseries_list(Name,
                           Timestamp,
-                          #'Metric'{label=Labels,
-                                    untyped=#'Untyped'{value=Value}},
+                          Obj=#{label:=Labels,
+                                    untyped:=#{value:=Value}},
                           #state{default_labels=DefaultLabels}) ->
+    Labels = maps:get(label, Obj, []),
     CLabels = prom_labels_to_cortex_labels(Name, Labels ++ DefaultLabels),
     [build_timeseries(Timestamp, CLabels, Value)];
 metric_to_timeseries_list(Name,
                           Timestamp,
-                          #'Metric'{
-                                label=Labels,
-                                counter=#'Counter'{value=Value}},
+                          Obj=#{
+                                counter:=#{value:=Value}},
                           #state{default_labels=DefaultLabels}) ->
+    Labels = maps:get(label, Obj, []),
     CLabels = prom_labels_to_cortex_labels(Name, Labels ++ DefaultLabels),
     [build_timeseries(Timestamp, CLabels, Value)];
 metric_to_timeseries_list(Name,
                           Timestamp,
-                          #'Metric'{label=Labels,
-                                    histogram=#'Histogram'{sample_count=Count,
-                                                           sample_sum=Sum,
-                                                           bucket=Buckets}},
+                          Obj=#{histogram:=#{sample_count:=Count,
+                                                           sample_sum:=Sum,
+                                                           bucket:=Buckets}},
                           #state{default_labels=DefaultLabels}) ->
 
+    Labels = maps:get(label, Obj, []),
     BucketTS = histogram_buckets_to_timeseries_list(
         Name, Timestamp, Labels, Buckets, DefaultLabels),
     Count_CLabels = prom_labels_to_cortex_labels(
@@ -261,11 +261,11 @@ metric_to_timeseries_list(Name,
     [TS1| [TS2|BucketTS]];
 metric_to_timeseries_list(Name,
                           Timestamp,
-                          #'Metric'{
-                            label=Labels,
-                            summary=#'Summary'{sample_count=Count,
-                                               sample_sum=Sum}},
+                          Obj=#{
+                            summary:=#{sample_count:=Count,
+                                               sample_sum:=Sum}},
                           #state{default_labels=DefaultLabels}) ->
+    Labels = maps:get(label, Obj, []),
     Count_CLabels = prom_labels_to_cortex_labels(
         << Name/binary, <<"_count">>/binary >>, Labels ++ DefaultLabels),
     TS1 = build_timeseries(Timestamp, Count_CLabels, Count),
@@ -279,11 +279,11 @@ histogram_buckets_to_timeseries_list(Name,
                                      Labels,
                                      Buckets,
                                      DefaultLabels) ->
-    BucketFun = fun(#'Bucket'{cumulative_count=BCount, upper_bound=BBound}) ->
+    BucketFun = fun(#{cumulative_count:=BCount, upper_bound:=BBound}) ->
         BucketName = << Name/binary, <<"_bucket">>/binary >>,
 
-        BucketLabel = #'LabelPair'{name="le",
-                                   value=bound_to_label_value(BBound)},
+        BucketLabel = #{name=>"le",
+                                   value=>bound_to_label_value(BBound)},
         BucketLabels = prom_labels_to_cortex_labels(
                                 BucketName,
                                 [BucketLabel|Labels] ++ DefaultLabels),
@@ -293,12 +293,12 @@ histogram_buckets_to_timeseries_list(Name,
 
 
 build_timeseries(Timestamp, Labels, Value) ->
-    #'TimeSeries'{
-        labels = Labels,
-        samples = [
-          #'Sample'{
-              value=Value,
-              timestamp_ms=Timestamp
+    #{
+        labels => Labels,
+        samples => [
+          #{
+              value=>Value,
+              timestamp_ms=>Timestamp
           }
         ]
     }.

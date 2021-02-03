@@ -5,7 +5,7 @@
 -export([send_write_request/3]).
 
 send_write_request(URL, ReqOpts, WriteRequest) ->
-    Msg = cortex_pb:encode_msg(WriteRequest),
+    Msg = cortex_pb:encode_msg(WriteRequest, 'WriteRequest'),
     {ok, ReqBody} = snappy:compress(Msg),
 
     ReqHeaders = [

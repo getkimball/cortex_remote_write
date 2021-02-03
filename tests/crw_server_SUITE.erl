@@ -5,7 +5,6 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("prometheus/include/prometheus_model.hrl").
--include_lib("../include/cortex_pb.hrl").
 
 
 -define(MUT, cortex_remote_write_server).
@@ -49,22 +48,22 @@ aa_test_single_gauge(Config) ->
     Name = <<"foo">>,
     Help = <<"help">>,
     Type = 'GAUGE',
-    Labels = [#'LabelPair'{name= <<"__name__">>, value=Name}],
-    Metric = #'Metric'{gauge=#'Gauge'{value=Value}},
-    Metrics = #'MetricFamily'{name=Name,
-                              help=Help,
-                              type=Type,
-                              metric=[Metric]},
+    Labels = [#{name=> <<"__name__">>, value=>Name}],
+    Metric = #{gauge=>#{value=>Value}},
+    Metrics = #{name=>Name,
+                              help=>Help,
+                              type=>Type,
+                              metric=>[Metric]},
 
     set_metrics([Metrics]),
 
     ok = start(),
     run(),
 
-    Sample = #'Sample'{value=Value, timestamp_ms=?TIME},
-    TimeSeries = #'TimeSeries'{labels=Labels, samples=[Sample]},
-    Metadata = #'MetricMetadata'{type='GAUGE', metric_name=Name, help=Help},
-    Write = #'WriteRequest'{timeseries=[TimeSeries], metadata=[Metadata]},
+    Sample = #{value=>Value, timestamp_ms=>?TIME},
+    TimeSeries = #{labels=>Labels, samples=>[Sample]},
+    Metadata = #{type=>'GAUGE', metric_name=>Name, help=>Help},
+    Write = #{timeseries=>[TimeSeries], metadata=>[Metadata]},
 
     assert_write_calls(1, '_', '_', Write),
 
@@ -84,23 +83,23 @@ ba_test_os_env_default_label(Config) ->
     Name = <<"foo">>,
     Help = <<"help">>,
     Type = 'GAUGE',
-    Labels = [#'LabelPair'{name= <<"__name__">>, value=Name},
-              #'LabelPair'{name=DLKey, value=OSEnvVarValue}],
-    Metric = #'Metric'{gauge=#'Gauge'{value=Value}},
-    Metrics = #'MetricFamily'{name=Name,
-                              help=Help,
-                              type=Type,
-                              metric=[Metric]},
+    Labels = [#{name=> <<"__name__">>, value=>Name},
+              #{name=>DLKey, value=>OSEnvVarValue}],
+    Metric = #{gauge=>#{value=>Value}},
+    Metrics = #{name=>Name,
+                              help=>Help,
+                              type=>Type,
+                              metric=>[Metric]},
 
     set_metrics([Metrics]),
 
     ok = start(),
     run(),
 
-    Sample = #'Sample'{value=Value, timestamp_ms=?TIME},
-    TimeSeries = #'TimeSeries'{labels=Labels, samples=[Sample]},
-    Metadata = #'MetricMetadata'{type='GAUGE', metric_name=Name, help=Help},
-    Write = #'WriteRequest'{timeseries=[TimeSeries], metadata=[Metadata]},
+    Sample = #{value=>Value, timestamp_ms=>?TIME},
+    TimeSeries = #{labels=>Labels, samples=>[Sample]},
+    Metadata = #{type=>'GAUGE', metric_name=>Name, help=>Help},
+    Write = #{timeseries=>[TimeSeries], metadata=>[Metadata]},
 
     assert_write_calls(1, '_', '_', Write),
 

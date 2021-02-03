@@ -7431,6 +7431,7 @@ define compile_proto.erl
 		gpb_compile:file(F, [
 			{include_as_lib, true},
 			{module_name_suffix, "_pb"},
+			maps,
 			{o_hrl, "./include"},
 			{o_erl, "./src"}])
 	end || F <- string:tokens("$1", " ")],
